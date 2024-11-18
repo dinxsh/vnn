@@ -1,4 +1,4 @@
-## 🎉 Multilayer Perceptron in Golang
+## Multilayer Perceptron in Golang
 
 a simple yet powerful neural network from scratch. Let's dive in!
 
