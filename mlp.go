@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
 )
@@ -64,7 +65,11 @@ func PrepareMLPNet(layerSizes []int, learningRate float64, transferFunc, transfe
 	return mlp
 }
 
-func Execute(mlp *MultiLayerNetwork, pattern *Pattern) []float64 {
+func Execute(mlp *MultiLayerNetwork, pattern *Pattern) ([]float64, error) {
+	if len(pattern.Features) != len(mlp.NeuralLayers[0].NeuronUnits) {
+		return nil, fmt.Errorf("input feature size does not match the input layer size")
+	}
+
 	inputs := pattern.Features
 	for _, layer := range mlp.NeuralLayers {
 		outputs := make([]float64, layer.Length)
@@ -78,7 +83,7 @@ func Execute(mlp *MultiLayerNetwork, pattern *Pattern) []float64 {
 		}
 		inputs = outputs
 	}
-	return inputs
+	return inputs, nil
 }
 
 func BackPropagate(mlp *MultiLayerNetwork, pattern *Pattern, outputs []float64) {
@@ -115,7 +120,7 @@ func BackPropagate(mlp *MultiLayerNetwork, pattern *Pattern, outputs []float64) 
 func MLPTrain(mlp *MultiLayerNetwork, patterns []Pattern, epochs int) {
 	for epoch := 0; epoch < epochs; epoch++ {
 		for _, pattern := range patterns {
-			outputs := Execute(mlp, &pattern)
+			outputs, _ := Execute(mlp, &pattern)
 			BackPropagate(mlp, &pattern, outputs)
 		}
 	}

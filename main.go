@@ -25,7 +25,11 @@ func main() {
 
 	// Test MLP
 	for _, pattern := range patterns {
-		outputs := Execute(&mlp, &pattern)
+		outputs, err := Execute(&mlp, &pattern)
+		if err != nil {
+			fmt.Println("Error executing pattern:", err)
+			continue
+		}
 		fmt.Printf("Input: %v, Expected: %v, Output: %v\n", pattern.Features, pattern.MultipleExpectation, outputs)
 	}
 }
