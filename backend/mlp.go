@@ -7,26 +7,26 @@ import (
 )
 
 type Pattern struct {
-	Features            []float64
-	MultipleExpectation []float64
+	Features            []float64 `json:"features"`
+	MultipleExpectation []float64 `json:"multipleExpectation"`
 }
 
 type NeuronUnit struct {
-	Weights []float64
-	Bias    float64
-	Lrate   float64
-	Value   float64
-	Delta   float64
+	Weights []float64 `json:"weights"`
+	Bias    float64   `json:"bias"`
+	Lrate   float64   `json:"lrate"`
+	Value   float64   `json:"value"`
+	Delta   float64   `json:"delta"`
 }
 
 type NeuralLayer struct {
-	NeuronUnits []NeuronUnit
-	Length      int
+	NeuronUnits []NeuronUnit `json:"neuronUnits"`
+	Length      int          `json:"length"`
 }
 
 type MultiLayerNetwork struct {
-	L_rate       float64
-	NeuralLayers []NeuralLayer
+	L_rate       float64       `json:"lRate"`
+	NeuralLayers []NeuralLayer `json:"neuralLayers"`
 	T_func       func(float64) float64
 	T_func_d     func(float64) float64
 }
@@ -34,9 +34,9 @@ type MultiLayerNetwork struct {
 func RandomNeuronInit(n *NeuronUnit, numInputs int) {
 	n.Weights = make([]float64, numInputs)
 	for i := range n.Weights {
-		n.Weights[i] = rand.Float64()
+		n.Weights[i] = rand.Float64()*2 - 1 // Initialize between -1 and 1
 	}
-	n.Bias = rand.Float64()
+	n.Bias = rand.Float64()*2 - 1
 	n.Lrate = 0.1
 }
 
@@ -70,60 +70,101 @@ func Execute(mlp *MultiLayerNetwork, pattern *Pattern) ([]float64, error) {
 		return nil, fmt.Errorf("input feature size does not match the input layer size")
 	}
 
-	inputs := pattern.Features
-	for _, layer := range mlp.NeuralLayers {
-		outputs := make([]float64, layer.Length)
-		for j, neuron := range layer.NeuronUnits {
-			sum := neuron.Bias
-			for k, weight := range neuron.Weights {
-				sum += weight * inputs[k]
-			}
-			outputs[j] = mlp.T_func(sum)
-			layer.NeuronUnits[j].Value = outputs[j]
-		}
-		inputs = outputs
+	// Set input layer values
+	for i, value := range pattern.Features {
+		mlp.NeuralLayers[0].NeuronUnits[i].Value = value
 	}
-	return inputs, nil
+
+	// Forward propagation
+	for i := 1; i < len(mlp.NeuralLayers); i++ {
+		layer := &mlp.NeuralLayers[i]
+		prevLayer := &mlp.NeuralLayers[i-1]
+		
+		for j := range layer.NeuronUnits {
+			neuron := &layer.NeuronUnits[j]
+			sum := neuron.Bias
+			
+			for k, weight := range neuron.Weights {
+				sum += weight * prevLayer.NeuronUnits[k].Value
+			}
+			
+			neuron.Value = mlp.T_func(sum)
+		}
+	}
+
+	// Get output values
+	outputLayer := mlp.NeuralLayers[len(mlp.NeuralLayers)-1]
+	outputs := make([]float64, len(outputLayer.NeuronUnits))
+	for i, neuron := range outputLayer.NeuronUnits {
+		outputs[i] = neuron.Value
+	}
+	
+	return outputs, nil
 }
 
-func BackPropagate(mlp *MultiLayerNetwork, pattern *Pattern, outputs []float64) {
+func BackPropagate(mlp *MultiLayerNetwork, pattern *Pattern, outputs []float64) float64 {
+	totalError := 0.0
+	
+	// Calculate output layer deltas and error
 	outputLayer := &mlp.NeuralLayers[len(mlp.NeuralLayers)-1]
-	for i, neuron := range outputLayer.NeuronUnits {
+	for i := range outputLayer.NeuronUnits {
 		error := pattern.MultipleExpectation[i] - outputs[i]
+		totalError += error * error
+		neuron := &outputLayer.NeuronUnits[i]
 		neuron.Delta = error * mlp.T_func_d(neuron.Value)
 	}
 
+	// Calculate hidden layer deltas
 	for l := len(mlp.NeuralLayers) - 2; l >= 0; l-- {
 		layer := &mlp.NeuralLayers[l]
 		nextLayer := &mlp.NeuralLayers[l+1]
-		for i, neuron := range layer.NeuronUnits {
+		
+		for i := range layer.NeuronUnits {
 			error := 0.0
-			for _, nextNeuron := range nextLayer.NeuronUnits {
-				error += nextNeuron.Weights[i] * nextNeuron.Delta
+			for j := range nextLayer.NeuronUnits {
+				error += nextLayer.NeuronUnits[j].Delta * nextLayer.NeuronUnits[j].Weights[i]
 			}
+			neuron := &layer.NeuronUnits[i]
 			neuron.Delta = error * mlp.T_func_d(neuron.Value)
 		}
 	}
 
+	// Update weights and biases
 	for l := 1; l < len(mlp.NeuralLayers); l++ {
-		inputs := mlp.NeuralLayers[l-1].NeuronUnits
 		layer := &mlp.NeuralLayers[l]
-		for _, neuron := range layer.NeuronUnits {
-			for j, inputNeuron := range inputs {
-				neuron.Weights[j] += mlp.L_rate * neuron.Delta * inputNeuron.Value
+		prevLayer := &mlp.NeuralLayers[l-1]
+		
+		for i := range layer.NeuronUnits {
+			neuron := &layer.NeuronUnits[i]
+			
+			// Update weights
+			for j := range neuron.Weights {
+				neuron.Weights[j] += mlp.L_rate * neuron.Delta * prevLayer.NeuronUnits[j].Value
 			}
+			
+			// Update bias
 			neuron.Bias += mlp.L_rate * neuron.Delta
 		}
 	}
+
+	return totalError / float64(len(outputs))
 }
 
-func MLPTrain(mlp *MultiLayerNetwork, patterns []Pattern, epochs int) {
-	for epoch := 0; epoch < epochs; epoch++ {
+func MLPTrain(mlp *MultiLayerNetwork, patterns []Pattern, epochs int) float64 {
+	var finalError float64
+	for i := 0; i < epochs; i++ {
+		totalError := 0.0
 		for _, pattern := range patterns {
-			outputs, _ := Execute(mlp, &pattern)
-			BackPropagate(mlp, &pattern, outputs)
+			outputs, err := Execute(mlp, &pattern)
+			if err != nil {
+				continue
+			}
+			error := BackPropagate(mlp, &pattern, outputs)
+			totalError += error
 		}
+		finalError = totalError / float64(len(patterns))
 	}
+	return finalError
 }
 
 func sigmoid(x float64) float64 {

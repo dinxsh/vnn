@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"sync"
 	"time"
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
@@ -37,9 +38,13 @@ var (
 	currentState  NetworkState
 	trainingError float64
 	currentEpoch  int
+	mu            sync.RWMutex
 )
 
 func getNetworkState(w http.ResponseWriter, r *http.Request) {
+	mu.RLock()
+	defer mu.RUnlock()
+
 	state := NetworkState{
 		Error: trainingError,
 		Epoch: currentEpoch,
@@ -77,6 +82,9 @@ func calculateError(patterns []Pattern) float64 {
 }
 
 func trainNetwork(w http.ResponseWriter, r *http.Request) {
+	mu.Lock()
+	defer mu.Unlock()
+
 	var req TrainingRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -119,14 +127,54 @@ func trainNetwork(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	w.WriteHeader(http.StatusOK)
+	state := NetworkState{
+		Error: trainingError,
+		Epoch: currentEpoch,
+	}
+	
+	for _, layer := range mlp.NeuralLayers {
+		layerState := LayerState{}
+		for _, neuron := range layer.NeuronUnits {
+			layerState.Neurons = append(layerState.Neurons, NeuronState{
+				Weights: neuron.Weights,
+				Value:   neuron.Value,
+				Bias:    neuron.Bias,
+			})
+		}
+		state.Layers = append(state.Layers, layerState)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(state)
 }
 
 func resetNetwork(w http.ResponseWriter, r *http.Request) {
+	mu.Lock()
+	defer mu.Unlock()
+
 	mlp = PrepareMLPNet([]int{2, 4, 1}, 0.5, sigmoid, sigmoidDerivative)
 	currentEpoch = 0
 	trainingError = 0
-	w.WriteHeader(http.StatusOK)
+	
+	state := NetworkState{
+		Error: trainingError,
+		Epoch: currentEpoch,
+	}
+	
+	for _, layer := range mlp.NeuralLayers {
+		layerState := LayerState{}
+		for _, neuron := range layer.NeuronUnits {
+			layerState.Neurons = append(layerState.Neurons, NeuronState{
+				Weights: neuron.Weights,
+				Value:   neuron.Value,
+				Bias:    neuron.Bias,
+			})
+		}
+		state.Layers = append(state.Layers, layerState)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(state)
 }
 
 func main() {
