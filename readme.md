@@ -1,8 +1,8 @@
-## 🎉 Multilayer Perceptron in Golang
+## Multilayer Perceptron in Golang
 
 a simple yet powerful neural network from scratch. Let's dive in!
 
-## 🚀 Overview
+### 🚀 Overview
 
 An MLP is a type of artificial neural network (ANN) that consists of an input layer, one or more hidden layers, and an output layer. Each neuron in one layer is connected to every neuron in the next layer, making it a fully connected network.
 
