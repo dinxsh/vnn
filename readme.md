@@ -1,54 +1,53 @@
-## Multilayer Perceptron in Golang
+### VNN 🪢
+web application for visualizing neural networks in real time
 
-a simple yet powerful neural network from scratch. Let's dive in!
+[![Next.js](https://img.shields.io/badge/Next.js-12.0.0-blue)](https://nextjs.org/)
+[![License](https://img.shields.io/github/license/dinxsh/vnn)](LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](https://github.com/dinxsh/vnn/pulls)
+[![Stage](https://img.shields.io/badge/stage-beta-yellow)](https://github.com/dinxsh/vnn)
 
-### 🚀 Overview
+![image](https://github.com/user-attachments/assets/987915c2-9da2-4602-b175-480ed4f4a9be)
 
-An MLP is a type of artificial neural network (ANN) that consists of an input layer, one or more hidden layers, and an output layer. Each neuron in one layer is connected to every neuron in the next layer, making it a fully connected network.
+### installation
 
-### 🧠 Key Components
+1. **clone the repository:**
+   ```bash
+   git clone https://github.com/dinxsh/vnn.git
+   cd vnn
+   ```
 
-- **Pattern**: Represents the input data and expected output.
-- **NeuronUnit**: The building block of the network, with weights, bias, and more.
-- **NeuralLayer**: A collection of neurons forming a layer.
-- **MultiLayerNetwork**: The entire network, ready to learn and predict!
+2. **setup backend:**
+   - ensure [go](https://golang.org/doc/install) is installed.
+   - navigate to the backend directory:
+     
+     ```bash
+     cd backend
+     ```
+   - build and run the server:
+     ```bash
+     go build
+     ./backend
+     ```
 
-### 🔧 Core Functions
+3. **setup frontend:**
+   - ensure [node.js](https://nodejs.org/en/download/) is installed.
+   - navigate to the frontend directory:
+     
+     ```bash
+     cd ../frontend
+     ```
+   - install dependencies and run the development server:
+     
+     ```bash
+     npm install
+     npm run dev
+     ```
 
-- **PrepareLayer**: Sets up a layer with neurons.
-- **PrepareMLPNet**: Initializes the MLP with layers and learning parameters.
-- **Execute**: Runs the network to get predictions.
-- **BackPropagate**: Adjusts weights using backpropagation.
-- **MLPTrain**: Trains the network with data over multiple epochs.
+## usage
 
-### 📈 Transfer Functions
+- try at `http://localhost:3000`.
+- load and visualize neural network models.
 
-- **Sigmoid Function**: Adds non-linearity to the model.
-- **Sigmoid Derivative**: Helps in calculating gradients during training.
+## license
 
-## 🎮 How to Use
-
-1. **Define Patterns**: Set up your input data and expected results.
-2. **Initialize MLP**: Use `PrepareMLPNet` to create your network.
-3. **Train**: Call `MLPTrain` to teach the network.
-4. **Test**: Use `Execute` to see how well it learned!
-
-## 🧪 Example
-
-Check out the included example that tackles the classic XOR problem. It's a great way to see the MLP in action!
-
-## 📚 Learn More
-
-For a deep dive into the theory and code, visit the [original article](https://madeddu.xyz/posts/neuralnetwork/).
-
-## 🤝 Contributing
-
-Feel free to fork this repo, make improvements, and submit pull requests. Let's make this project even better together!
-
-## 📜 License
-
-This project is open-source under the MIT License. Enjoy and happy coding! 🎉
-
----
-
-Thanks for checking out this project! If you have any questions or feedback, don't hesitate to reach out. Let's build something amazing! 🚀
+this project is licensed under the MIT License. For details, see the [LICENSE](LICENSE) file.
