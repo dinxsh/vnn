@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 
 interface NeuronState {
   weights: number[];
@@ -23,87 +23,33 @@ interface TrainingPattern {
   multipleExpectation: number[];
 }
 
+const DEFAULT_PATTERNS = [
+  { features: [0, 0], multipleExpectation: [0] },
+  { features: [0, 1], multipleExpectation: [1] },
+  { features: [1, 0], multipleExpectation: [1] },
+  { features: [1, 1], multipleExpectation: [0] },
+];
+
 export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [networkState, setNetworkState] = useState<NetworkState | null>(null);
   const [isTraining, setIsTraining] = useState(false);
   const [epochs, setEpochs] = useState(1000);
-  const [patterns, setPatterns] = useState<TrainingPattern[]>([
-    { features: [0, 0], multipleExpectation: [0] },
-    { features: [0, 1], multipleExpectation: [1] },
-    { features: [1, 0], multipleExpectation: [1] },
-    { features: [1, 1], multipleExpectation: [0] },
-  ]);
+  const [patterns, setPatterns] = useState<TrainingPattern[]>(DEFAULT_PATTERNS);
   const [newPattern, setNewPattern] = useState<TrainingPattern>({
     features: [0, 0],
     multipleExpectation: [0],
   });
+  const [mounted, setMounted] = useState(false);
 
-  const fetchNetworkState = async () => {
-    try {
-      const response = await fetch('http://localhost:8080/api/network/state');
-      const data = await response.json();
-      setNetworkState(data);
-    } catch (error) {
-      console.error('Error fetching network state:', error);
-    }
-  };
-
-  const trainNetwork = async () => {
-    try {
-      setIsTraining(true);
-      await fetch('http://localhost:8080/api/network/train', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ patterns, epochs }),
-      });
-      await fetchNetworkState();
-    } catch (error) {
-      console.error('Error training network:', error);
-    } finally {
-      setIsTraining(false);
-    }
-  };
-
-  const resetNetwork = async () => {
-    try {
-      await fetch('http://localhost:8080/api/network/reset', {
-        method: 'POST',
-      });
-      await fetchNetworkState();
-    } catch (error) {
-      console.error('Error resetting network:', error);
-    }
-  };
-
-  const addPattern = () => {
-    setPatterns([...patterns, { ...newPattern }]);
-    setNewPattern({
-      features: [0, 0],
-      multipleExpectation: [0],
-    });
-  };
-
-  const removePattern = (index: number) => {
-    setPatterns(patterns.filter((_, i) => i !== index));
-  };
-
-  useEffect(() => {
-    fetchNetworkState();
-    const interval = setInterval(fetchNetworkState, 500);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
+  const drawNetwork = useCallback(() => {
     if (!canvasRef.current || !networkState) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set dark background
+    // Clear canvas
     ctx.fillStyle = '#1a1a1a';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -112,75 +58,139 @@ export default function Home() {
     const neuronSpacing = canvas.height / (maxNeurons + 1);
     const neuronRadius = 15;
 
-    // Draw neurons and connections
+    // Draw connections first
     networkState.layers.forEach((layer, layerIndex) => {
+      if (layerIndex === 0) return; // Skip input layer connections
+
       const x = layerSpacing * (layerIndex + 1);
-      
       layer.neurons.forEach((neuron, neuronIndex) => {
-        const y = (neuronSpacing * (neuronIndex + 1)) + 
-                 ((canvas.height - (layer.neurons.length * neuronSpacing)) / 2);
+        const y = (neuronSpacing * (neuronIndex + 1)) +
+          ((canvas.height - (layer.neurons.length * neuronSpacing)) / 2);
 
         // Draw connections to previous layer
-        if (layerIndex > 0) {
-          const prevLayer = networkState.layers[layerIndex - 1];
-          const prevX = layerSpacing * layerIndex;
+        const prevLayer = networkState.layers[layerIndex - 1];
+        const prevX = layerSpacing * layerIndex;
+        prevLayer.neurons.forEach((prevNeuron, prevIndex) => {
+          const prevY = (neuronSpacing * (prevIndex + 1)) +
+            ((canvas.height - (prevLayer.neurons.length * neuronSpacing)) / 2);
           
-          prevLayer.neurons.forEach((prevNeuron, prevIndex) => {
-            const prevY = (neuronSpacing * (prevIndex + 1)) + 
-                         ((canvas.height - (prevLayer.neurons.length * neuronSpacing)) / 2);
-            
-            // Draw connection with weight-based opacity and color
-            const weight = neuron.weights[prevIndex];
-            const absWeight = Math.abs(weight);
-            const weightColor = weight > 0 ? '0, 255, 0' : '255, 0, 0';
-            ctx.beginPath();
-            ctx.strokeStyle = `rgba(${weightColor}, ${absWeight})`;
-            ctx.lineWidth = Math.max(1, absWeight * 3);
-            ctx.moveTo(prevX, prevY);
-            ctx.lineTo(x, y);
-            ctx.stroke();
-          });
-        }
-
-        // Draw neuron with activation-based glow
-        const activation = neuron.value;
-        const gradient = ctx.createRadialGradient(x, y, 0, x, y, neuronRadius * 2);
-        gradient.addColorStop(0, `rgba(64, 156, 255, ${0.3 + activation * 0.7})`);
-        gradient.addColorStop(1, 'rgba(64, 156, 255, 0)');
-        
-        // Draw glow
-        ctx.beginPath();
-        ctx.fillStyle = gradient;
-        ctx.arc(x, y, neuronRadius * 2, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Draw neuron
-        ctx.beginPath();
-        ctx.fillStyle = `rgba(64, 156, 255, ${0.3 + activation * 0.7})`;
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-        ctx.lineWidth = 2;
-        ctx.arc(x, y, neuronRadius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        // Draw neuron value
-        ctx.fillStyle = 'white';
-        ctx.font = '12px Inter';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(neuron.value.toFixed(2), x, y);
+          const weight = neuron.weights[prevIndex];
+          const alpha = Math.abs(weight);
+          ctx.strokeStyle = weight > 0 ? `rgba(0, 255, 0, ${alpha})` : `rgba(255, 0, 0, ${alpha})`;
+          ctx.lineWidth = Math.abs(weight) * 2;
+          
+          ctx.beginPath();
+          ctx.moveTo(prevX, prevY);
+          ctx.lineTo(x, y);
+          ctx.stroke();
+        });
       });
     });
 
-    // Draw layer labels
-    ctx.font = '14px Inter';
-    ctx.fillStyle = 'white';
-    ctx.textAlign = 'center';
-    ['Input', 'Hidden', 'Output'].forEach((label, i) => {
-      const x = layerSpacing * (i + 1);
-      ctx.fillText(label, x, 30);
+    // Draw neurons
+    networkState.layers.forEach((layer, layerIndex) => {
+      const x = layerSpacing * (layerIndex + 1);
+      layer.neurons.forEach((neuron, neuronIndex) => {
+        const y = (neuronSpacing * (neuronIndex + 1)) +
+          ((canvas.height - (layer.neurons.length * neuronSpacing)) / 2);
+
+        ctx.beginPath();
+        ctx.arc(x, y, neuronRadius, 0, Math.PI * 2);
+        ctx.fillStyle = `rgb(
+          ${Math.floor(255 * neuron.value)},
+          ${Math.floor(255 * neuron.value)},
+          ${Math.floor(255 * neuron.value)}
+        )`;
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Draw bias
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '10px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(neuron.bias.toFixed(2), x, y + neuronRadius + 15);
+      });
     });
-  }, [networkState]);
+  }, [networkState, canvasRef]);
+
+  const fetchNetworkState = useCallback(async () => {
+    try {
+      const response = await fetch('http://localhost:8080/api/network/state');
+      const data = await response.json();
+      setNetworkState(data);
+      drawNetwork();
+    } catch (error) {
+      console.error('Error fetching network state:', error);
+    }
+  }, [drawNetwork]);
+
+  const trainNetwork = useCallback(async () => {
+    try {
+      setIsTraining(true);
+      const response = await fetch('http://localhost:8080/api/network/train', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ patterns, epochs }),
+      });
+      const data = await response.json();
+      setNetworkState(data);
+      drawNetwork();
+    } catch (error) {
+      console.error('Error training network:', error);
+    } finally {
+      setIsTraining(false);
+    }
+  }, [patterns, epochs, drawNetwork]);
+
+  const resetNetwork = useCallback(async () => {
+    try {
+      const response = await fetch('http://localhost:8080/api/network/reset', {
+        method: 'POST',
+      });
+      const data = await response.json();
+      setNetworkState(data);
+      drawNetwork();
+    } catch (error) {
+      console.error('Error resetting network:', error);
+    }
+  }, [drawNetwork]);
+
+  const addPattern = useCallback(() => {
+    setPatterns(prev => [...prev, { ...newPattern }]);
+    setNewPattern({
+      features: [0, 0],
+      multipleExpectation: [0],
+    });
+  }, [newPattern]);
+
+  const removePattern = useCallback((index: number) => {
+    setPatterns(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    
+    fetchNetworkState();
+    const interval = setInterval(fetchNetworkState, 1000);
+    return () => clearInterval(interval);
+  }, [mounted, fetchNetworkState]);
+
+  useEffect(() => {
+    if (!mounted) return;
+    drawNetwork();
+  }, [mounted, drawNetwork]);
+
+  if (!mounted) {
+    return null;
+  }
 
   return (
     <main className="min-h-screen bg-gray-900 text-white p-8">
@@ -200,7 +210,7 @@ export default function Home() {
                   <input
                     type="number"
                     value={epochs}
-                    onChange={(e) => setEpochs(parseInt(e.target.value))}
+                    onChange={(e) => setEpochs(parseInt(e.target.value) || 1000)}
                     className="w-full px-3 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                     min="1"
                     max="10000"
@@ -239,7 +249,7 @@ export default function Home() {
                     value={newPattern.features.join(', ')}
                     onChange={(e) => setNewPattern({
                       ...newPattern,
-                      features: e.target.value.split(',').map(Number),
+                      features: e.target.value.split(',').map(n => Number(n) || 0),
                     })}
                     className="w-full px-3 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                     placeholder="0, 0"
@@ -253,7 +263,7 @@ export default function Home() {
                     value={newPattern.multipleExpectation.join(', ')}
                     onChange={(e) => setNewPattern({
                       ...newPattern,
-                      multipleExpectation: e.target.value.split(',').map(Number),
+                      multipleExpectation: e.target.value.split(',').map(n => Number(n) || 0),
                     })}
                     className="w-full px-3 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                     placeholder="0"
